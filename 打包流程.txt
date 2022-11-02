@@ -1,0 +1,3 @@
+1.生成spec文件：pyinstaller -F -p E:\PyCharm_WorkSpace\01_huiyi_api_server\venv\Lib\site-packages\ .\huiyi_api.py
+2.修改spec文件：hiddenimports=["uvicorn.loops","uvicorn.loops.auto","uvicorn.protocols.http.auto","uvicorn.lifespan","uvicorn.lifespan.on","tortoise.backends.mysql"],
+3.再次生成exe文件：pyinstaller .\huiyi_api.spec
