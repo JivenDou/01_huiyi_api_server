@@ -1,3 +1,10 @@
+"""
+@File  : modbus_converter.py
+@Author: lee
+@Date  : 2022/7/12/0012 8:55:13
+@Desc  : 此类为modbus协议通用解析器，用于：insitu水质传感器，新气象传感器，新水质传感器
+"""
+
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -11,11 +18,9 @@ app = FastAPI()
 
 # 配置允许域名
 origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
     "http://localhost",
     "http://localhost:8080",
-    "http://127.0.0.1",
+    "http://127.0.0.1"
 ]
 # 配置允许域名列表、允许方法、请求头、cookie等
 app.add_middleware(
@@ -109,7 +114,7 @@ class realTimeEchart(BaseModel):
     dataName: str = "Tur"
 
 @app.post("/realTime/getEchartsDatas")
-async def get_echarts_datas(realTimeEchart:realTimeEchart):
+async def get_echarts_datas(realTimeEchart : realTimeEchart):
     db = Tortoise.get_connection("default")
     dateType = realTimeEchart.dateType
     dataName = realTimeEchart.dataName
