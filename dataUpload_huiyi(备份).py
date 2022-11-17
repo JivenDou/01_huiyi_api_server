@@ -13,7 +13,6 @@ import pymysql
 import socket
 import os
 from binascii import *
-from tcp_connector import TcpConnector
 
 
 def conn_mysql(host, user, passwd, db, port=3306):
@@ -58,6 +57,67 @@ def update_sql(sql):
         return False
 
 
+def conn_socket(ip, port):
+    """创建服务器套接字"""
+    tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # 允许重用本地地址和端口
+    tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)  # 在客户端开启心跳维护
+    tcp_sock.settimeout(10)  # 设置超时时间10s
+    try:
+        tcp_sock.connect((ip, port))
+        # print(tcp_sock)
+        return tcp_sock
+    except Exception as e:
+        print(f"[{now_time}]-ERROR [conn_socket] {ip}:{port} {e}")
+        return False
+
+
+def send_socket(sock, data):
+    """发送数据"""
+    # sock = conn_socket(ip, port, 10)
+    res_result = False
+    if sock:
+        try:
+            send_data = bytes.fromhex(data)
+            sock.send(send_data)  # 发送数据，将数据以字节流形式发出
+            res_result = True
+            print(f"[{now_time}]-SUCCESS [send_socket] \"{data}\"")
+        except Exception as e:
+            res_result = False
+            print(f"[{now_time}]-ERROR [send_socket] \"{data}\" {e}")
+    # sock.close()     # 关闭套接字
+    return res_result
+
+
+def reconn_socket():
+    """断线重连"""
+    while True:
+        try:
+            global sock
+            sock = conn_socket(upload_ip, upload_port)
+            print("reconnect success!")
+            break
+        except Exception as e:
+            print(f"[{now_time}]-ERROR [reconn_socket] {upload_ip}:{upload_port} {e}")
+            print("Reconnect in 5 seconds...")
+            time.sleep(5)
+
+
+# def get_socket(ip, port):
+#     """接收数据"""
+#     sock = conn_socket(ip, port)
+#     data = False
+#     if sock:
+#         try:
+#             data = sock.recv(1024)  # 接收数据，将数据以字节流形式发出
+#             time.sleep(0.5)
+#             print(f"[{now_time}]-SUCCESS [get_socket] getdata: \"{data}\"")
+#         except Exception as e:
+#             print(f"[{now_time}]-ERROR [get_socket] {e}")
+#     sock.close()  # 关闭套接字
+#     return data
+
+
 def change_data_status(sql_data_times):
     """更新已入网的数据的状态"""
     try:
@@ -77,7 +137,7 @@ def change_data_status(sql_data_times):
         return False
 
 
-def crc32add(read):
+def crc32Add(read):
     """生成CRC32校验码"""
     data = read.replace(" ", "")  # 消除空格
     read_crc32 = hex(crc32(unhexlify(data)))
@@ -107,32 +167,39 @@ def update_package_num():
         next_date = datetime.date.today() + datetime.timedelta(days=1)
         next_zero_time = next_date.strftime("%Y-%m-%d 00:00:00")
         next_zero_time = datetime.datetime.strptime(next_zero_time, "%Y-%m-%d 00:00:00")
-        sql = f"UPDATE `other_data` SET zero_time = '{next_zero_time}' WHERE id = 1"
+        sql = "UPDATE `other_data` " \
+              f"SET zero_time = '{next_zero_time}' " \
+              "WHERE id = 1"
         update_sql(sql)
-        sql = f"UPDATE `other_data` SET num = 0 WHERE id = 1"
+        sql = "UPDATE `other_data` " \
+              f"SET num = 0 " \
+              "WHERE id = 1"
         update_sql(sql)
 
 
-def get_data():
+def get_Data():
     """获取流数据"""
+    # get_shuizhi = "SELECT id,times,c2,c1,c3,c7,c4,c5,c6,is_upload FROM `table_shuizhi` WHERE is_upload=0 ORDER BY times LIMIT 1;"
+    # get_yelvsu = "SELECT c7,is_upload FROM `table_yelvsu` WHERE is_upload=0 ORDER BY times LIMIT 1;"
+    # get_shuizhi = "SELECT id,times,c2,c1,c3,c7,c4,c5,c6,is_upload FROM `table_shuizhi` ORDER BY times DESC LIMIT 1;"
     get_shuizhi = "SELECT id,times,c8,c2,c1,c3,c7,c4,c5,c6,is_upload FROM `table_shuizhi` ORDER BY times DESC LIMIT 1;"
     shuizhi = select_sql(get_shuizhi)
     isupload = shuizhi[0][10]
+    # print(shuizhi)
     if shuizhi is not False:
         if shuizhi != ():
             shuizhi = list(shuizhi[0])
             if isupload == 0:
-                # 保留两位小数 None转NAL
-                for i in range(len(shuizhi)):
-                    if shuizhi[i] is None:
-                        shuizhi[i] = "NAL"
-                    elif isinstance(shuizhi[i], float):
-                        shuizhi[i] = round(shuizhi[i], 2)
-                    # 转字符串
-                    shuizhi[i] = str(shuizhi[i])
                 # 获取当前的数据时间
                 sql_data_times = shuizhi[1]
-                # print(shuizhi)
+                # 保留两位小数
+                for i in range(len(shuizhi) - 2):
+                    shuizhi[i + 2] = round(shuizhi[i + 2], 2)
+                # 转字符串
+                shuizhi = [str(i) for i in shuizhi]
+                # data_str = "{}\t{}\tNAL\tNAL\t{}\t{}\t{}\t{}\t{}\t{}\t{}\tNAL"
+                # data_str = data_str.format(shuizhi[0], shuizhi[1], shuizhi[2], shuizhi[3], shuizhi[4], shuizhi[5],
+                #                            shuizhi[6], shuizhi[7], shuizhi[8])
                 data_str = "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\tNAL"
                 data_str = data_str.format(shuizhi[1], shuizhi[2], shuizhi[3], shuizhi[4], shuizhi[5],
                                            shuizhi[6], shuizhi[7], shuizhi[8], shuizhi[9])
@@ -142,9 +209,11 @@ def get_data():
                     char_hex = hex(ord(char))[2:]
                     char_hex = char_hex if len(char_hex) == 2 else "0" + char_hex
                     data_str_hex += char_hex
+
                 # 计算包长度
                 data_len = hex(int(len(data_str_hex) / 2))[2:]
                 data_len = '0' * (4 - len(data_len)) + data_len  # 补零
+
                 return data_str_hex, data_len, sql_data_times
             else:
                 print(f"[{now_time}]-INFO [deal_data] 数据上传过了")
@@ -164,18 +233,18 @@ def get_unupload_data():
     Protocol = "0101"  # 协议
     Byte = "01"  # 字节序
     Backup = "ffffffff"  # 备用位
-    Data, Length, sql_data_times = get_data()  # 流数据和包长度
+    Data, Length, sql_data_times = get_Data()  # 流数据和包长度
     Num = get_package_num()  # 包编号
     TimeStamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')  # 时间戳
     if Data:
         unupload_data = SOH + Site + Protocol + TimeStamp + Num + Length + Byte + Backup + Data
-        unupload_data = crc32add(unupload_data)  # 加上CRC32校验码
+        unupload_data = crc32Add(unupload_data)  # 加上CRC32校验码
         return unupload_data, sql_data_times
     else:
         return False, False
 
 
-def main():
+def main(sock):
     # 检查更新包编号
     update_package_num()
     # 获取未上传的数据
@@ -183,7 +252,7 @@ def main():
     if data and sql_data_times:
         try:
             # 发送数据
-            send_res = socket.send_command(data)
+            send_res = send_socket(sock, data)
             # 修改数据的上传状态
             if send_res:
                 if change_data_status(sql_data_times):
@@ -194,8 +263,23 @@ def main():
 
 if __name__ == '__main__':
     now_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    socket = TcpConnector(ip="223.78.117.245", port=8004)
-    # socket = TcpConnector(ip="192.168.2.200", port=4001)
+    upload_ip = "223.78.117.245"
+    upload_port = 8004
+    global sock
+    # upload_ip = "0.0.0.0"
+    # upload_port = 4001
+
+    try:
+        sock = conn_socket(upload_ip, upload_port, 10)
+        print("connect success!")
+    except Exception as e:
+        print(f"[{now_time}]-ERROR [__main__] {upload_ip}:{upload_port} {e}")
+        reconn_socket()
+
     while True:
-        main()
-        time.sleep(180)
+        try:
+            main(sock)
+            time.sleep(50)
+        except Exception as e:
+            print(f"[{now_time}]-ERROR [__main__] {e}")
+            reconn_socket()
